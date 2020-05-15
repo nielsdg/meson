@@ -24,7 +24,7 @@ from .. import build
 from .. import mlog
 from .. import mesonlib
 from .. import interpreter
-from . import GResourceTarget, GResourceHeaderTarget, GirTarget, TypelibTarget, VapiTarget
+from . import GResourceTarget, GResourceHeaderTarget, GirTarget, TypelibTarget, VapiTarget, ValadocTarget
 from . import get_include_args
 from . import ExtensionModule
 from . import ModuleReturnValue
@@ -1688,6 +1688,94 @@ G_END_DECLS'''
         rv = InternalDependency(None, incs, [], [], link_with, [], sources, [], {})
         created_values.append(rv)
         return ModuleReturnValue(rv, created_values)
+
+    @permittedKwargs({'package_name', 'package_version', 'packages',
+                      'doclet', 'doclet_args', 'vapi_dirs', 'install', 'install_dir'})
+    @FeatureNew('gnome.valadoc', '0.55.0')
+    def valadoc(self, state, args, kwargs):
+        build_dir = os.path.join(state.environment.get_build_dir(), state.subdir)
+        source_dir = os.path.join(state.environment.get_source_dir(), state.subdir)
+
+        if not args:
+            raise MesonException('valadoc takes at least one positional argument')
+
+        # Build the command line
+        cmd = [ self.interpreter.find_program_impl('valadoc') ]
+
+        # Always force, or it will complain that "File already exists" when
+        # doing an incremental update
+        cmd += [ '--force' ]
+
+        # Package
+        pkg_name = kwargs.get('package_name')
+        pkg_version = kwargs.get('package_version')
+        if not pkg_name:
+            raise MesonException('Missing required "package_name" keyword argument')
+        if not pkg_version:
+            raise MesonException('Missing required "package_version" keyword argument')
+        cmd += [ '--package-name=' + pkg_name ]
+        cmd += [ '--package-version=' + pkg_version ]
+        package = '{}-{}'.format(pkg_name, pkg_version)
+
+        # VAPI packages
+        cmd += self._vapi_args_to_command('--pkg=', 'packages', kwargs)
+        cmd += self._vapi_args_to_command('--vapidir=', 'vapi_dirs', kwargs)
+
+        # Doclet
+        doclet = kwargs.get('doclet')
+        if not doclet:
+            doclet = 'html'
+        cmd += [ '--doclet=' + doclet ]
+
+        doclet_args = kwargs.get('doclet_args')
+        if doclet_args is not None:
+            for d_arg in doclet_args:
+                # Prevent people from doing something funky
+                if not isinstance(d_args, str):
+                    raise MesonException('Keyword argument "doclet_args" allows only string options')
+                cmd += [ d_arg ]
+
+        # Install directory
+        install = kwargs.get('install')
+        if install:
+            install_dir = kwargs.get('install_dir')
+            if not install_dir:
+                # By default, install into ${datadir}/doc/${package}
+                datadir = state.environment.get_datadir()
+                install_dir = os.path.join(datadir, 'doc')
+
+                # For some doclet types, we can do better
+                if doclet == 'gtkdoc':
+                  install_dir = os.path.join(datadir, 'gtk-doc', 'html')
+                elif doclet == 'devhelp':
+                  install_dir = os.path.join(datadir, 'devhelp', 'books')
+
+        # Output directory
+        cmd += [ '--directory=' + os.path.join(build_dir, package) ]
+
+        # Inputs
+        inputs = self.interpreter.source_strings_to_files(args)
+        for f in inputs:
+            if isinstance(f, mesonlib.File):
+                cmd += [ f.absolute_path(state.environment.source_dir,
+                                         state.environment.build_dir) ]
+            else:
+                raise InterpreterException('valadoc inputs can only be strings or file objects')
+
+        # Combine into a custom target
+        target_name = package + '-valadoc'
+        custom_kwargs = {
+             'command': cmd,
+             'input': inputs,
+             'output': package,
+             # 'depends': vapi_depends,
+             'install': install,
+             'install_dir': install_dir,
+        }
+        valadoc_target = ValadocTarget(target_name, state.subdir, state.subproject, custom_kwargs)
+
+        rv = [ valadoc_target ]
+        return ModuleReturnValue(rv, rv)
 
 def initialize(*args, **kwargs):
     return GnomeModule(*args, **kwargs)

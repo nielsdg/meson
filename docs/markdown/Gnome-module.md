@@ -294,7 +294,26 @@ library.
 Returns a custom dependency that can be included when building other
 VAPI or Vala binaries.
 
-*Added 0.36.0*
+### gnome.valadoc()
+
+Generates the Vala documentation from the given source files. The positional
+arguments are the source files from which the comments should be rendered with
+`valadoc`.
+
+* `package_name`: Name of the package
+* `package_version`: Version of the package
+* `packages`: Names of the dependencies' VAPI packages
+* `vapi_dirs`: extra directories to include for VAPI files
+* `doclet`: the doclet module that should be used (default: `html`)
+* `doclet_args`: extra arguments that should be passed to the doclet module
+* `install`: if true, install the generated documentation
+* `install_dir`: location to install the generated documentation.
+*                Defaults to `${datadir}/doc/${package}` or normal install dirs
+                 if doclet is `gtkdoc` or `devhelp`.
+
+Returns a `${package}-valadoc` target.
+
+*Added 0.55.0*
 
 ### gnome.yelp()
 

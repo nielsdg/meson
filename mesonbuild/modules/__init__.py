@@ -93,3 +93,7 @@ class TypelibTarget(build.CustomTarget):
 class VapiTarget(build.CustomTarget):
     def __init__(self, name, subdir, subproject, kwargs):
         super().__init__(name, subdir, subproject, kwargs)
+
+class ValadocTarget(build.CustomTarget):
+    def __init__(self, name, subdir, subproject, kwargs):
+        super().__init__(name, subdir, subproject, kwargs)
